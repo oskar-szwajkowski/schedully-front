@@ -1,15 +1,16 @@
 import React, { useState } from 'react';
 import './App.css';
-import calendarLogo from './assets/calendar.png';
 import { Container, createMuiTheme, ThemeProvider } from "@material-ui/core";
-import Paper from "@material-ui/core/Paper";
 import Toolbar from "@material-ui/core/Toolbar";
 import AppBar from "@material-ui/core/AppBar";
 import IconButton from "@material-ui/core/IconButton";
 import Brightness5Icon from "@material-ui/icons/Brightness5";
 import Brightness7Icon from "@material-ui/icons/Brightness7";
-import { createTopRoundBorder } from "./utils/styles";
-import Button from "@material-ui/core/Button";
+import MainPage from "./components/main-page/MainPage";
+import { BrowserRouter as Router, Route, Switch } from "react-router-dom";
+import CreateSchedule from "./components/create-schedule/CreateSchedule";
+import Grid from "@material-ui/core/Grid";
+import ViewSchedule from "./components/view-schedule/ViewSchedule";
 
 function App() {
 
@@ -20,6 +21,18 @@ function App() {
             createMuiTheme({
                 palette: {
                     type: isDarkMode ? 'dark' : 'light',
+                    primary: {
+                        main: isDarkMode ? "#fff" : "#000"
+                    },
+                    secondary: {
+                        main: isDarkMode ? "#bbb" : "#444"
+                    },
+                    text: {
+                        primary: isDarkMode ? "#fff" : "#000",
+                        secondary: isDarkMode ? "#bbb" : "#444",
+                        disabled: isDarkMode ? "#888" : "#666",
+                        hint: isDarkMode ? "#ddd" : "#222"
+                    }
                 },
             }),
         [isDarkMode],
@@ -36,7 +49,7 @@ function App() {
             <Container fixed className="main-container" style={{
                 backgroundColor: theme.palette.background.default
             }}>
-                <AppBar position="static" color={"inherit"} dir={"rtl"} elevation={3}>
+                <AppBar position="fixed" color={"inherit"} dir={"rtl"} elevation={3} style={{ zIndex: theme.zIndex.drawer + 1 }}>
                     <Toolbar>
                         {console.log(theme)}
                         <IconButton onClick={toggleTheme}>
@@ -44,55 +57,34 @@ function App() {
                         </IconButton>
                     </Toolbar>
                 </AppBar>
-                <Container maxWidth="md" className="banner-container">
-                    <Paper elevation={2} style={createTopRoundBorder(theme)}>
-                        <div className="main-card">
-                            <div className="banner">
-                                <div className="banner-image">
-                                    <img src={calendarLogo}
-                                         alt="App logo"
-                                         width="200px" height="200px"
-                                         style={{
-                                             filter: theme.palette.type === "dark" ? "invert(1)" : ""
-                                         }}/>
-                                    <img src={calendarLogo}
-                                         alt="App logo"
-                                         width="200px" height="200px"
-                                         style={{
-                                             filter: "invert(0.7) hue-rotate(90deg)",
-                                             backgroundColor: "yellow",
-                                             position: "absolute",
-                                             top: 0,
-                                             left: 0,
-                                             animation: "calendar-day-pick 6s steps(1) infinite",
-                                         }}/>
-                                </div>
-                                <div className="banner-text">
-                                    <h1 style={{
-                                        paddingBottom: "1em"
-                                    }}>Welcome to Schedule.me!</h1>
-                                    <p>With Schedule.me, planning events at the right time is a breeze.</p>
-                                    <p>In order to start, create new schedule, or provide code for existing one.</p>
-                                </div>
-                            </div>
-                            <div style={{
-                                paddingTop: "2em",
-                                display: "flex",
-                                alignItems: "flex-end",
-                                flexDirection: "column"
-                            }}>
-
-                                <Container maxWidth="xs" style={{
-                                    display: "flex",
-                                    justifyContent: "space-around"
-                                }}>
-                                    <Button variant="outlined" color="inherit">Create schedule</Button>
-                                    <Button variant="outlined" color="inherit">View existing</Button>
-                                </Container>
-                            </div>
-                        </div>
-                    </Paper>
-                </Container>
+                <Router>
+                    <Switch>
+                        <Route path="/view/:code">
+                            <Grid container spacing={0} justify={"center"} className="pt-4 content-container">
+                                <Grid className="ml-auto mr-auto content-container-inner" container item
+                                      md={12}>
+                                    <ViewSchedule/>
+                                </Grid>
+                            </Grid>
+                        </Route>
+                        <Route path="/create">
+                            <Grid container spacing={0} justify={"center"} className="pt-4 content-container">
+                                <Grid className="ml-auto mr-auto content-container-inner" container spacing={4} item
+                                      md={9}>
+                                    <CreateSchedule/>
+                                </Grid>
+                            </Grid>
+                        </Route>
+                        <Route path="/">
+                            <Grid container spacing={0} justify={"center"} alignItems={"flex-start"} className="pt-4 content-container">
+                                <Grid className="content-container-inner" container item
+                                      md={9}>
+                                    <MainPage/>
+                                </Grid>
+                            </Grid>
+                        </Route>
+                    </Switch>
+                </Router>
             </Container>
         </ThemeProvider>
     );

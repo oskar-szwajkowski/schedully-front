@@ -1,49 +1,29 @@
 .main-container {
-  height: 100%;
-  padding-left: 0!important;
-  padding-right: 0!important;
-  max-width: 100% !important;
-  margin: 0 !important;
+    min-height: 100%;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    display: flex;
 }
 
-.banner-container {
-  padding-top: 3em;
+.content-container {
+    height: calc(100% - 64px);
 }
 
-.banner {
-  display: flex;
-  flex-direction: row;
-  place-items: center;
-}
-
-.main-card {
-  padding: 2em;
-}
-
-.banner-text {
-  padding-left: 5em;
-  display: flex;
-  flex-direction: column;
-  line-height: 1.5;
-}
-
-.banner-image {
-  position: relative;
+.content-container-inner {
+    max-height: 100%;
 }
 
 @media only screen and (max-width: 600px) {
-  .main-container {
-    padding-left: 0!important;
-    padding-right: 0!important;
-    max-width: 100% !important;
-    margin: 0 !important;
-  }
+    .main-container {
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+    }
 
-  .banner {
-    flex-direction: column;
-  }
-
-  .banner-text {
-    padding-left: 0;
-  }
+    .content-container {
+        height: calc(100% - 56px);
+    }
 }

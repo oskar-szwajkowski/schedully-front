@@ -1,0 +1,9 @@
+#scheduler-container {
+    height: calc(100vh / 1.2);
+}
+
+@media only screen and (max-width: 960px) {
+    #scheduler-container {
+        height: auto;
+    }
+}

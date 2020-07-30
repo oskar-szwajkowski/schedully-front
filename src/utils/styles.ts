@@ -1,8 +1,6 @@
-import { Theme } from "@material-ui/core";
-
-export function createTopRoundBorder(theme: Theme) {
+export function createTopRoundBorder(color: string) {
     return {
-        borderTop: `${theme.palette.divider} 4px solid`,
+        borderTop: `${color} 4px solid`,
         borderTopLeftRadius: "4px",
         borderTopRightRadius: "4px"
     }
