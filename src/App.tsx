@@ -49,7 +49,8 @@ function App() {
             <Container fixed className="main-container" style={{
                 backgroundColor: theme.palette.background.default
             }}>
-                <AppBar position="fixed" color={"inherit"} dir={"rtl"} elevation={3} style={{ zIndex: theme.zIndex.drawer + 1 }}>
+                <AppBar position="fixed" color={"inherit"} dir={"rtl"} elevation={3}
+                        style={{ zIndex: theme.zIndex.drawer + 1 }}>
                     <Toolbar>
                         {console.log(theme)}
                         <IconButton onClick={toggleTheme}>
@@ -59,8 +60,8 @@ function App() {
                 </AppBar>
                 <Router>
                     <Switch>
-                        <Route path="/view/:code">
-                            <Grid container spacing={0} justify={"center"} className="pt-4 content-container">
+                        <Route path="/view/:scheduleCode">
+                            <Grid container spacing={0} justify={"center"} className="content-container">
                                 <Grid className="ml-auto mr-auto content-container-inner" container item
                                       md={12}>
                                     <ViewSchedule/>
@@ -76,7 +77,8 @@ function App() {
                             </Grid>
                         </Route>
                         <Route path="/">
-                            <Grid container spacing={0} justify={"center"} alignItems={"flex-start"} className="pt-4 content-container">
+                            <Grid container spacing={0} justify={"center"} alignItems={"flex-start"}
+                                  className="pt-4 content-container">
                                 <Grid className="content-container-inner" container item
                                       md={9}>
                                     <MainPage/>

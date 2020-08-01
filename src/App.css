@@ -26,4 +26,9 @@
     .content-container {
         height: calc(100% - 56px);
     }
+
+    .px-16-mobile {
+        padding-right: 16px;
+        padding-left: 16px;
+    }
 }

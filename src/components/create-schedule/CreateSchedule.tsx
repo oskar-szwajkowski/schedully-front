@@ -1,26 +1,59 @@
 import React, { ChangeEvent, MouseEventHandler, useState } from 'react';
 import Grid from "@material-ui/core/Grid";
-import { Container, Paper, TextField, useTheme } from "@material-ui/core";
-import { createTopRoundBorder } from "../../utils/styles";
+import { Backdrop, CircularProgress, Container, Paper, TextField, useTheme } from "@material-ui/core";
+import { createFakeToolbarClass, createTopRoundBorder } from "../../utils/styles";
 import Button from "@material-ui/core/Button";
+import { generateRandomName } from "../../utils/utilFunctions";
+import { makeStyles } from "@material-ui/core/styles";
+import { createSchedule } from "../../api-calls/createSchedule";
+import { useHistory } from 'react-router-dom';
+
+const useStyles = makeStyles(theme => ({
+    backdrop: {
+        zIndex: theme.zIndex.drawer + 1,
+        color: theme.palette.background.paper,
+    },
+}));
+const initialNickname = localStorage.getItem("nickname") || generateRandomName();
 
 function CreateSchedule() {
 
     const theme = useTheme();
+    const classes = useStyles(theme);
+    const history = useHistory();
+
     const [title, setTitle] = useState("");
+    const [nickname, setNickname] = useState(initialNickname);
     const [description, setDescription] = useState("");
 
-    const createSchedule: MouseEventHandler = event => {
+    const [apiCallInProgress, setApiCallInProgress] = useState(false);
+
+    const createScheduleHandler: MouseEventHandler = event => {
         event.preventDefault();
         // @ts-ignore
-        console.log(event.currentTarget.form.reportValidity())
-        console.log(title);
+        const isValid = event.currentTarget.form.reportValidity()
+        if (isValid) {
+            setApiCallInProgress(true);
+            createSchedule(title, nickname, description)
+                .then(schedule => {
+                    localStorage.setItem("nickname", nickname);
+                    setApiCallInProgress(false);
+                    return Promise.resolve(schedule);
+                })
+                .then(schedule => {
+                    history.push(`/view/${schedule.scheduleCode}`, {
+                        schedule
+                    });
+                });
+        }
     }
     const titleChange = (event: ChangeEvent<HTMLInputElement>) => setTitle(event.target.value);
+    const nicknameChange = (event: ChangeEvent<HTMLInputElement>) => setNickname(event.target.value);
     const descriptionChange = (event: ChangeEvent<HTMLInputElement>) => setDescription(event.target.value);
 
     return (
-        <Grid item lg={12}>
+        <Grid item lg={12} className="w-100">
+            <div style={createFakeToolbarClass(theme).fakeToolbar}/>
             <Paper elevation={2} style={createTopRoundBorder(theme.palette.divider)}>
                 <Container className="card-padding d-flex flex-column">
                     <Grid item container direction={"column"} alignItems={"center"}>
@@ -41,6 +74,16 @@ function CreateSchedule() {
                                 />
                                 <TextField
                                     fullWidth={true}
+                                    required={true}
+                                    id="nickname-required"
+                                    label="Nickname"
+                                    variant="filled"
+                                    defaultValue={nickname}
+                                    onChange={nicknameChange}
+                                    className="mb-3"
+                                />
+                                <TextField
+                                    fullWidth={true}
                                     id="description"
                                     label="Description"
                                     variant="filled"
@@ -53,7 +96,7 @@ function CreateSchedule() {
                                         variant="outlined"
                                         color="inherit"
                                         type={"submit"}
-                                        onClick={createSchedule}>Create schedule
+                                        onClick={createScheduleHandler}>Create schedule
                                     </Button>
                                 </div>
                             </form>
@@ -61,6 +104,9 @@ function CreateSchedule() {
                     </Grid>
                 </Container>
             </Paper>
+            <Backdrop className={classes.backdrop} open={apiCallInProgress}>
+                <CircularProgress color="inherit"/>
+            </Backdrop>
         </Grid>
     )
 }

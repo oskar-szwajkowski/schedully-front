@@ -1,9 +1,31 @@
 #scheduler-container {
-    height: calc(100vh / 1.2);
+    height: calc(100vh - 64px - 0.5rem);
 }
 
-@media only screen and (max-width: 960px) {
+#schedule-view-container {
+    display: flex;
+}
+
+#view-container {
+    padding-right: 24px !important;
+}
+
+@media only screen and (max-width: 600px) {
     #scheduler-container {
-        height: auto;
+        height: 100%;
+    }
+
+    .xs-mb-2 {
+        margin-bottom: 0.5rem !important;
+    }
+
+    #view-container {
+        padding-right: 0 !important;
     }
 }
+
+/*@media only screen and (max-width: 600px) {*/
+/*    #scheduler-container {*/
+/*        height: 100%*/
+/*    }*/
+/*}*/

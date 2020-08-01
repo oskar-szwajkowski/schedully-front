@@ -1,4 +1,5 @@
 import {
+    AllDayPanel,
     AppointmentForm,
     Appointments,
     DateNavigator,
@@ -12,139 +13,176 @@ import {
     Toolbar,
     ViewSwitcher,
     WeekView,
-} from '@devexpress/dx-react-scheduler-material-ui';
+} from "@devexpress/dx-react-scheduler-material-ui";
 import {
-    AppointmentModel, Appointments as AppointmentsBase,
+    AppointmentModel,
     ChangeSet,
     EditingState,
     FormatterFn,
     Resource,
+    ResourceInstance,
     ViewState,
-} from '@devexpress/dx-react-scheduler';
-import React, { ChangeEvent, useState } from "react";
-import { Container, Drawer, Grid, IconButton, Paper, useTheme, Toolbar as MaterialToolbar } from '@material-ui/core';
+} from "@devexpress/dx-react-scheduler";
+import React, { ChangeEvent, MouseEventHandler, useEffect, useRef, useState } from "react";
+import {
+    Backdrop,
+    CircularProgress,
+    Container,
+    Drawer,
+    Grid,
+    Hidden,
+    IconButton,
+    Paper,
+    Toolbar as MaterialToolbar,
+    useTheme
+} from "@material-ui/core";
 import "./ViewSchedule.css";
 import TextField from "@material-ui/core/TextField";
-import { createTopRoundBorder } from "../../utils/styles";
-import { VisibilityOffSharp, VisibilitySharp } from '@material-ui/icons';
+import { createFakeToolbarClass, createTopRoundBorder } from "../../utils/styles";
+import { ChevronLeft, ChevronRight } from "@material-ui/icons";
 import { makeStyles } from "@material-ui/core/styles";
+import UserSubmissions from "../user-submissions/UsersSubmissions";
+import clsx from "clsx";
+import Button from "@material-ui/core/Button";
+import { useParams } from "react-router-dom";
+import { getScheduleSubmissions } from "../../api-calls/getScheduleSubmissions";
+import { ISubmitSchedule } from "../../interfaces/ISubmitSchedule";
+import { IAppointment } from "../../interfaces/IAppointment";
+import { generateRandomName } from "../../utils/utilFunctions";
+import { submitSchedule } from "../../api-calls/submitSchedule";
 
-const recurrenceAppointments = [{
-    title: 'Website Re-Design Plan',
-    startDate: new Date(new Date().setHours(14)),
-    endDate: new Date(new Date().setHours(16)),
-    id: 0,
-    userId: "bzyku",
-    nickname: "bzyku"
-}, {
-    title: 'Website Re-Design Plan',
-    startDate: new Date(new Date().setHours(12)),
-    endDate: new Date(new Date().setHours(14)),
-    id: 1,
-    nickname: "Mathejson",
-    userId: "Mathejson",
-}, {
-    title: 'Website Re-Design Plan',
-    startDate: new Date(new Date().setHours(10)),
-    endDate: new Date(new Date().setHours(12)),
-    id: 2,
-    nickname: "Czachaa",
-    userId: "Czachaa",
-}, {
-    title: 'Website Re-Design Plan',
-    startDate: new Date(new Date().setHours(8)),
-    endDate: new Date(new Date().setHours(10)),
-    id: 3,
-    nickname: "Kondi",
-    userId: "Kondi",
-}];
-
-const resources: Resource[] = [{
-    fieldName: "userId",
-    title: "Submitter",
-    instances: [
-        { id: "bzyku", text: "bzyku", color: "#64b5f6" },
-        { id: "Mathejson", text: "Mathejson", color: "#ffff00" },
-        { id: "Czachaa", text: "Czachaa", color: "#00ff00" },
-        { id: "Kondi", text: "Kondi", color: "#ff0000" },
-    ],
-}];
-
-interface IUserSubmittedSchedule {
-    userId: string;
-    nickname: string;
-    appointments: AppointmentModel[]
-}
+const yourColor = '#42d4f4';
+const availableColors = [
+    '#e6194B', '#3cb44b',
+    '#4363d8', '#f58231', '#f032e6',
+    '#fabed4', '#469990', '#dcbeff',
+    '#9A6324', '#fffac8', '#800000',
+    '#aaffc3', '#000075', '#a9a9a9'
+];
 
 const drawerWidth = 240;
 const useStyles = makeStyles(theme => ({
     drawer: {
         width: drawerWidth,
         flexShrink: 0,
+        whiteSpace: 'nowrap',
     },
-    drawerPaper: {
+    drawerOpen: {
         width: drawerWidth,
+        transition: theme.transitions.create('width', {
+            easing: theme.transitions.easing.sharp,
+            duration: theme.transitions.duration.enteringScreen,
+        }),
     },
+    drawerClose: {
+        width: drawerWidth / 2,
+        transition: theme.transitions.create('width', {
+            easing: theme.transitions.easing.sharp,
+            duration: theme.transitions.duration.enteringScreen,
+        }),
+    },
+    backdrop: {
+        zIndex: theme.zIndex.drawer + 1,
+        color: theme.palette.background.paper,
+    },
+    ...createFakeToolbarClass(theme)
 }));
+
+
+function getVisibleSchedules(data: AppointmentModel[], visibleSchedules: string[], nickname: string) {
+    return [...data.filter(schedule => schedule.userId === nickname || visibleSchedules.includes(schedule.userId))]
+}
+
+function convertSubmissions(submissions: ISubmitSchedule[]) {
+    return submissions.flatMap(submission =>
+        submission.appointments.map<AppointmentModel>((appointment: IAppointment, index) => ({
+            id: index,
+            userId: submission.userId || submission.nickname,
+            nickname: submission.nickname,
+            startDate: Number(appointment.startDate),
+            endDate: Number(appointment.endDate),
+            title: submission.userId || submission.nickname
+        }))
+    )
+}
+
+const defaultTitle = "Free time";
+
+const randomName = generateRandomName();
+const initialName = localStorage.getItem("nickname") || randomName;
+console.log("LOADED INITIAL NICKNAME", initialName);
+let nickname = initialName;
 
 function ViewSchedule() {
 
+    const { scheduleCode } = useParams();
+    const currentDate = new Date();
+
+    const [scheduleData, setScheduleData] = useState<AppointmentModel[]>([])
+    const [visibleScheduleData, setVisibleScheduleData] = useState(scheduleData);
+    const [resources, setResources] = useState<Resource[]>([{
+        fieldName: "userId",
+        title: "Submitter",
+        instances: []
+    }]);
+    const [visibleUserSchedules, setVisibleUserSchedules] = useState<string[]>([initialName]);
+
+    // Pure visual state
     const theme = useTheme();
     const classes = useStyles(theme);
-    const [scheduleData, setScheduleData] = useState<AppointmentModel[]>(recurrenceAppointments)
-    const [visibleScheduleData, setVisibleScheduleData] = useState(scheduleData);
-    const [currentDate] = useState(new Date());
-    const [userColors, setUserColors] = useState()
-    const [submitters, setSubmitters] = useState("");
-    const [userSchedules] = useState<IUserSubmittedSchedule[]>([{
-        appointments: [...recurrenceAppointments.map(r => ({
-            ...r,
-            userId: "Mathejson",
-            nickname: "Mathejson",
-        }))],
-        userId: "Mathejson",
-        nickname: "Mathejson",
-    }, {
-        appointments: [...recurrenceAppointments.map(r => ({
-            ...r,
-            userId: "Czachaa",
-            nickname: "Czachaa",
-        }))],
-        userId: "Czachaa",
-        nickname: "Czachaa",
-    }, {
-        appointments: [...recurrenceAppointments.map(r => ({
-            ...r,
-            userId: "Kondi",
-            nickname: "Kondi",
-        }))],
-        userId: "Kondi",
-        nickname: "Kondi",
-    }]);
-    const [visibleUserSchedules, setVisibleUserSchedules] = useState<string[]>([
-        "Mathejson",
-        "Czachaa",
-        "Kondi"
-    ]);
+    const [drawerOpen, setDrawerOpen] = useState(true);
+    const codeInputRef = useRef(null);
+    const [apiCallInProgress, setApiCallInProgress] = useState(true);
 
-    const [nickname, setNickname] = useState("bzyku");
+    useEffect(() => {
+        getScheduleSubmissions(scheduleCode)
+            .then(submissions => {
+                const instances = convertSubmissionsToInstances(submissions.submissions);
+                setResources(r => [{
+                    ...r[0],
+                    instances: convertSubmissionsToInstances(submissions.submissions)
+                }]);
+                setScheduleData(convertSubmissions(submissions.submissions));
+                setVisibleUserSchedules(v => [...v, ...instances.map(i => String(i.id))]);
+            }).then(() => setApiCallInProgress(false));
+    }, [scheduleCode])
 
-    const nicknameChange = (event: ChangeEvent<HTMLInputElement>) => setNickname(event.target.value);
+    const nicknameChange = (event: ChangeEvent<HTMLInputElement>) => {
+        nickname = event.target.value;
+    }
+
+    useEffect(() => {
+            setVisibleScheduleData(getVisibleSchedules(scheduleData, visibleUserSchedules, initialName));
+        },
+        [visibleUserSchedules, scheduleData]
+    );
+
+    function convertSubmissionsToInstances(submissions: ISubmitSchedule[]): ResourceInstance[] {
+        return submissions.map((submission, index) => ({
+            id: submission.userId || submission.nickname,
+            text: submission.userId || submission.nickname,
+            color: submission.nickname === initialName ? yourColor : (availableColors[index] || "#a9a9a9")
+        }));
+    }
 
     function commitChanges(changes: ChangeSet) {
-        console.log("CHANGE", changes);
+        console.log(changes);
         if (changes) {
             if (changes.added) {
                 const startingAddedId = scheduleData.length > 0 ? Number((scheduleData[scheduleData.length - 1] && scheduleData[scheduleData.length - 1]).id) + 1 : 0;
                 setScheduleData([...scheduleData, { id: startingAddedId, ...changes.added as AppointmentModel }]);
             }
             if (changes.changed) {
-                setScheduleData(scheduleData.map(appointment => (
+                const changedAppointmentId = Number(Object.keys(changes.changed)[0]);
+                const changedAppointment = scheduleData.find(s => s.id === changedAppointmentId);
+                if (changedAppointment && changedAppointment.userId === initialName) {
+                    const newScheduleData = scheduleData.map(appointment => (
                         (changes.changed || {})[appointment.id as number] ?
                             { ...appointment, ...((changes.changed || {})[appointment.id || 0] || {}) } :
                             appointment)
                     )
-                );
+                    setScheduleData(newScheduleData);
+                }
             }
             if (changes.deleted !== undefined) {
                 setScheduleData(scheduleData.filter(appointment => appointment.id !== changes.deleted));
@@ -152,16 +190,40 @@ function ViewSchedule() {
         }
     }
 
-    function addAppointment(appointmentData: AppointmentModel) {
-        console.log(appointmentData, scheduleData);
+    function getNewAppointmentId(): number {
+        return Number(scheduleData.length && scheduleData[scheduleData.length - 1].id) + 1;
+    }
+
+    function addOrDeleteAppointment(appointmentData: AppointmentModel) {
+        console.log(appointmentData);
         if (appointmentData) {
-            if (appointmentData.id) {
-                setScheduleData(scheduleData.filter(d => d.id !== appointmentData.id));
+            let newScheduleData: AppointmentModel[];
+            if ((appointmentData.id || appointmentData.id === 0) && appointmentData.userId === initialName) {
+                newScheduleData = scheduleData.filter(d => d.id !== appointmentData.id)
             } else {
-                const newId = Number(scheduleData.length && scheduleData[scheduleData.length - 1].id) + 1;
-                setScheduleData([...scheduleData, { ...appointmentData, id: newId, title: "Free time" }]);
+                newScheduleData = [...scheduleData, {
+                    ...appointmentData,
+                    id: getNewAppointmentId(),
+                    title: defaultTitle,
+                    userId: initialName,
+                    nickname: initialName
+                }];
             }
+            setScheduleData(newScheduleData);
         }
+    }
+
+    function addAllDayAppointment({ startDate, endDate}: { startDate: Date, endDate: Date }) {
+        const newAppointment: AppointmentModel = {
+            startDate: startDate.getTime(),
+            endDate: endDate.getTime(),
+            allDay: true,
+            id: getNewAppointmentId(),
+            title: defaultTitle,
+            userId: initialName,
+            nickname: initialName
+        };
+        setScheduleData([...scheduleData, newAppointment]);
     }
 
     function timeScaleComponent(props: { time?: Date, formatDate: FormatterFn }) {
@@ -185,146 +247,215 @@ function ViewSchedule() {
         const isOn = !!visibleUserSchedules.find(s => s === userId);
         const newVisibleSchedules = isOn ? visibleUserSchedules.filter(u => u !== userId) : [...visibleUserSchedules, userId];
         setVisibleUserSchedules(newVisibleSchedules);
-
-        setVisibleScheduleData([...scheduleData.filter(schedule => schedule.userId === nickname || newVisibleSchedules.includes(schedule.userId))]);
     }
 
-    const appointmentComponent = (props: AppointmentsBase.AppointmentContentProps) => {
-        console.log(props);
-        return (<React.Fragment>{props.children}</React.Fragment>)
-    };
-
-    function appointmentContent2(props: AppointmentsBase.AppointmentContentProps) {
-        console.log(props);
-        return (<div className="h-100" style={{ backgroundColor: props.data.backgroundColor || "#64b5f6" }}>
-            <div style={{
-                overflow: "hidden",
-                fontWeight: "bold",
-                whiteSpace: "nowrap",
-                textOverflow: "ellipsis"
-            }}>{props.data.nickname !== nickname ? props.data.nickname : props.data.title}</div>
-            <div style={{
-                overflow: "hidden",
-                lineHeight: 1,
-                whiteSpace: "pre-wrap",
-                textOverflow: "ellipsis"
-            }}>
-                <div style={{
-                    display: "inline-block",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis"
-                }}>
-                    {props.formatDate(props.data.startDate, { hour: "numeric", minute: "numeric" })}
-                </div>
-                <div style={{
-                    display: "inline-block",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis"
-                }}>
-                    &nbsp;-&nbsp;
-                </div>
-                <div style={{
-                    display: "inline-block",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis"
-                }}>
-                    {props.formatDate(props.data.endDate, { hour: "numeric", minute: "numeric" })}
-                </div>
-            </div>
-        </div>);
+    const submitScheduleHandler: MouseEventHandler = event => {
+        event.preventDefault();
+        // @ts-ignore
+        const isValid = event.currentTarget.form.reportValidity();
+        if (isValid) {
+            const currentUserAppointments = scheduleData.filter(s => s.nickname === initialName)
+                .map(s => ({ startDate: Number(s.startDate), endDate: Number(s.endDate), allDay: s.allDay || false}));
+            const scheduleSubmission: ISubmitSchedule = {
+                nickname: nickname,
+                userId: nickname,
+                appointments: currentUserAppointments
+            }
+            setApiCallInProgress(true);
+            submitSchedule(scheduleCode, scheduleSubmission)
+                .then(() => {
+                    localStorage.setItem("nickname", nickname);
+                    setApiCallInProgress(false);
+                });
+        }
     }
+
+    function handleDrawerToggle() {
+        setDrawerOpen(!drawerOpen);
+    }
+
+    const Appointment = (props: any) => (
+        <Appointments.Appointment
+            {...props}
+            style={{
+                ...props.style,
+                textShadow: "0px 0px 2px black",
+            }}
+        >
+            {props.children}
+        </Appointments.Appointment>
+    );
+
+    const DraftAppointmentComponent = (props: any) => (
+        <DragDropProvider.DraftAppointment {...props} style={{
+            ...props.style,
+            textShadow: "0px 0px 2px black",
+        }}>
+            {props.children}
+        </DragDropProvider.DraftAppointment>
+    )
+
+    const AllDayCell = (props: any) => (
+        <AllDayPanel.Cell {...props} style={{
+            ...props.style,
+            textShadow: "0px 0px 2px black",
+        }} onDoubleClick={() => addAllDayAppointment(props)}>
+            {props.children}
+        </AllDayPanel.Cell>
+    )
+
+    const AllDayAppointmentLayer = (props: any) => (
+        <AllDayPanel.AppointmentLayer {...props} style={{
+            ...props.style,
+            textShadow: "0px 0px 2px black",
+        }}>
+            {console.log(props)}
+            {props.children}
+        </AllDayPanel.AppointmentLayer>
+    )
 
     return (
-        <div id={"schedule-view-container"} className="w-100 px-3">
-            <React.Fragment>
+        <div id={"schedule-view-container"} className="w-100 pt-2">
+            <Hidden xsDown>
                 <Drawer
-                    className={classes.drawer}
+                    className={clsx(classes.drawer, {
+                        [classes.drawerOpen]: drawerOpen,
+                        [classes.drawerClose]: !drawerOpen
+                    })}
                     variant="permanent"
                     classes={{
-                        paper: classes.drawerPaper,
+                        paper: clsx(classes.drawer, {
+                            [classes.drawerOpen]: drawerOpen,
+                            [classes.drawerClose]: !drawerOpen
+                        })
                     }}
                 >
                     <MaterialToolbar/>
-                    <div style={{ overflow: "auto" }} className="h-100">
-                        DUUUPA
-                    </div>
+                    <UserSubmissions
+                        currentUser={initialName}
+                        instances={resources[0].instances}
+                        visibleUserSchedules={visibleUserSchedules}
+                        toggleUserScheduleVisibility={toggleUserScheduleVisibility}
+                        minified={!drawerOpen}
+                        child={
+                            <IconButton onClick={handleDrawerToggle}>
+                                {drawerOpen ? <ChevronLeft/> : <ChevronRight/>}
+                            </IconButton>
+                        }
+                    />
                 </Drawer>
-            </React.Fragment>
-            <Grid container>
-                <Grid item md={2} xs={12}>
-                    <Paper style={createTopRoundBorder(theme.palette.background.paper)} elevation={2} className="h-100">
-                        <h3 className="card-padding" style={{ backgroundColor: theme.palette.divider }}>User
-                            submissions</h3>
-                        <div className="w-100 h-100">
-                            {userSchedules.map(u => (
-                                <div className="py-2 d-flex justify-content-between align-items-center card-padding"
-                                     key={u.userId} style={{ backgroundColor: theme.palette.grey["700"] }}>
-                                    <span style={{
-                                        color: String(resources[0].instances.find(i => i.id === u.userId)?.color) || theme.palette.text.disabled
-                                    }}>{u.userId}</span>
-                                    <IconButton onClick={() => toggleUserScheduleVisibility(u.userId)}>
-                                        {visibleUserSchedules?.find(s => s === u.userId) ?
-                                            <VisibilitySharp/> :
-                                            <VisibilityOffSharp/>}
-                                    </IconButton>
-                                </div>
-                            ))}
-                        </div>
-                    </Paper>
-                </Grid>
-                <Grid item md={8} xs={12}>
-                    <Container id={"scheduler-container"}>
-                        <Paper elevation={2} className="h-100" style={createTopRoundBorder(theme.palette.background.paper)}>
-                            <Scheduler
-                                data={visibleScheduleData}
-                                height={"auto"}
-                            >
-                                <ViewState
-                                    defaultCurrentDate={currentDate}
-                                />
-                                <Toolbar/>
-                                <DateNavigator/>
-                                <TodayButton/>
-                                <EditingState
-                                    onCommitChanges={commitChanges}
-                                />
-                                <EditRecurrenceMenu/>
-                                <WeekView
-                                    timeScaleLabelComponent={timeScaleComponent}
-                                    startDayHour={0}
-                                    endDayHour={24}
-                                />
-                                <DayView/>
-                                <MonthView/>
-                                <ViewSwitcher/>
-                                <Appointments
-                                    // appointmentContentComponent={appointmentComponent}
-                                />
-                                <Resources data={resources}/>
-                                <AppointmentForm onAppointmentDataChange={addAppointment}
-                                                 visible={false}
-                                />
-                                <DragDropProvider
-                                />
-                            </Scheduler>
-                        </Paper>
-                    </Container>
-                </Grid>
-                <Grid item md={2} xs={12}>
-                    <Paper>
-                        <div className="w-100">
-                            <TextField
-                                id="nickname"
-                                label="Nickname"
-                                variant={"filled"}
-                                fullWidth={true}
-                                required={true}
-                                onChange={nicknameChange}
+            </Hidden>
+            <Grid container id={"view-container"} direction={"column"}>
+                <div className={classes.fakeToolbar}/>
+                <Grid container direction={"row"}>
+                    <Hidden smUp>
+                        <Grid item xs={12} className="xs-mb-2 px-16-mobile">
+                            <UserSubmissions
+                                currentUser={initialName}
+                                instances={resources[0].instances}
+                                visibleUserSchedules={visibleUserSchedules}
+                                toggleUserScheduleVisibility={toggleUserScheduleVisibility}
+                                minified={false}
                             />
-                        </div>
-                    </Paper>
+                        </Grid>
+                    </Hidden>
+                    <Grid item md={10} xs={12} className="xs-mb-2">
+                        <Container maxWidth={"xl"} id={"scheduler-container"}>
+                            <Paper elevation={2} className="h-100"
+                                   style={createTopRoundBorder(theme.palette.background.paper)}>
+                                <Scheduler
+                                    data={visibleScheduleData}
+                                    height={"auto"}
+                                >
+                                    <ViewState
+                                        defaultCurrentDate={currentDate}
+                                    />
+                                    <Toolbar/>
+                                    <DateNavigator/>
+                                    <TodayButton/>
+                                    <EditingState
+                                        onCommitChanges={commitChanges}
+                                    />
+                                    <EditRecurrenceMenu/>
+                                    <WeekView
+                                        timeScaleLabelComponent={timeScaleComponent}
+                                        startDayHour={0}
+                                        endDayHour={24}
+                                    />
+                                    <DayView/>
+                                    <MonthView/>
+                                    <ViewSwitcher/>
+                                    <AllDayPanel
+                                        cellComponent={AllDayCell}
+                                        appointmentLayerComponent={AllDayAppointmentLayer}
+                                    />
+                                    <Appointments
+                                        appointmentComponent={Appointment}
+                                    />
+                                    <Resources data={resources}/>
+                                    <AppointmentForm onAppointmentDataChange={addOrDeleteAppointment}
+                                                     visible={false}
+                                    />
+                                    <DragDropProvider
+                                        draftAppointmentComponent={DraftAppointmentComponent}
+                                    />
+                                </Scheduler>
+                            </Paper>
+                        </Container>
+                    </Grid>
+                    <Grid item md={2} xs={12} className="px-16-mobile">
+                        <Paper className="mb-2">
+                            <div className="w-100 card-padding">
+                                <TextField
+                                    fullWidth={true}
+                                    label="Schedule code"
+                                    id="schedule-code-input"
+                                    InputProps={{
+                                        readOnly: true
+                                    }}
+                                    onClick={() => {
+                                        // @ts-ignore
+                                        codeInputRef.current?.select();
+                                        document.execCommand("copy");
+                                    }}
+                                    inputRef={codeInputRef}
+                                    value={scheduleCode}
+                                    variant="filled"
+                                />
+                            </div>
+                        </Paper>
+                        <Paper className="mb-2">
+                            <div className="w-100 card-padding">
+                                <p className="mb-3">Double click on empty cell to generate new free time.</p>
+                                <p className="mb-3">Double click on existing free time, to delete it.</p>
+                                <form>
+                                    <TextField
+                                        id="nickname"
+                                        label="Nickname"
+                                        variant={"filled"}
+                                        fullWidth={true}
+                                        required={true}
+                                        defaultValue={initialName}
+                                        onChange={nicknameChange}
+                                        className="mb-3"
+                                    />
+                                    <div className="d-flex justify-content-end">
+                                        <Button
+                                            variant="outlined"
+                                            color="inherit"
+                                            type={"submit"}
+                                            onClick={submitScheduleHandler}>Submit
+                                        </Button>
+                                    </div>
+                                </form>
+                            </div>
+                        </Paper>
+                    </Grid>
                 </Grid>
             </Grid>
+            <Backdrop className={classes.backdrop} open={apiCallInProgress}>
+                <CircularProgress color="inherit"/>
+            </Backdrop>
         </div>
     );
 }

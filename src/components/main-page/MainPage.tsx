@@ -1,6 +1,6 @@
 import Grid from "@material-ui/core/Grid";
 import Paper from "@material-ui/core/Paper";
-import { createTopRoundBorder } from "../../utils/styles";
+import { createFakeToolbarClass, createTopRoundBorder } from "../../utils/styles";
 import calendarLogo from "../../assets/calendar.png";
 import Button from "@material-ui/core/Button";
 import TextField from "@material-ui/core/TextField";
@@ -54,6 +54,7 @@ function MainPage() {
     return (
         <React.Fragment>
             <Grid container item lg spacing={4} justify={"center"} alignContent={"center"}>
+                <div style={createFakeToolbarClass(theme).fakeToolbar}/>
                 <Grid container item md={12}>
                     <Paper elevation={2} style={{ ...createTopRoundBorder(theme.palette.divider), width: "100%" }}>
                         <div className="main-card">
